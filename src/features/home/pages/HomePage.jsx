@@ -82,7 +82,7 @@ const JOURNEYS = Object.freeze([
     title: 'Review documents',
     description:
       'Open representative document versions from completed local requests.',
-    href: '/claims',
+    href: '/documents',
     actionLabel: 'Find documents',
     Icon: ClipboardList,
   }),

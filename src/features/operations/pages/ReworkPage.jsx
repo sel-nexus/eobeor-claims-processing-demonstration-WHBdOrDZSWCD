@@ -15,7 +15,6 @@ import {
   Moon,
   RefreshCw,
   ShieldAlert,
-  ShieldCheck,
   Wrench,
 } from 'lucide-react';
 import AccessDenied from '../../../platform/components/AccessDenied.jsx';
@@ -555,12 +554,9 @@ export function ReworkPage({
             />
           </span>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-primary-700 dark:text-primary-300">
-              Browser-local claims operations
-            </p>
             <h1
               id={headingId}
-              className="mt-1 text-2xl font-semibold tracking-tight text-content dark:text-content-inverse sm:text-3xl"
+              className="text-2xl font-semibold tracking-tight text-content dark:text-content-inverse sm:text-3xl"
             >
               Rework a fictional claim
             </h1>
@@ -572,31 +568,6 @@ export function ReworkPage({
           </div>
         </div>
       </header>
-
-      <aside
-        className="mt-5 rounded-xl border border-primary-200 bg-primary-50 p-4 text-sm text-primary-900 dark:border-primary-800 dark:bg-primary-950 dark:text-primary-100"
-        role="note"
-        aria-label="Claim rework disclosure"
-      >
-        <div className="flex items-start gap-3">
-          <ShieldCheck
-            className="mt-0.5 h-5 w-5 shrink-0 text-primary-700 dark:text-primary-300"
-            aria-hidden="true"
-          />
-          <div>
-            <p className="font-semibold">
-              Deterministic local rework only
-            </p>
-            <p className="mt-1 leading-6">
-              Rework creates browser-local request, pipeline,
-              document-version, or queue evidence only. Existing
-              representative EOB and EOR versions remain retained.
-              No payer, provider, healthcare, payment, reporting,
-              delivery, or IXIT system is contacted.
-            </p>
-          </div>
-        </div>
-      </aside>
 
       {operationError !== null ||
       fieldErrors.length > 0 ? (

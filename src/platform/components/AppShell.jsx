@@ -7,6 +7,7 @@ import {
   useState,
 } from 'react';
 import {
+  ChevronDown,
   HelpCircle,
   LogOut,
   Menu,
@@ -14,10 +15,10 @@ import {
   UserRound,
   X,
 } from 'lucide-react';
-import DisclosureBanner from './DisclosureBanner.jsx';
 import SessionWarning from './SessionWarning.jsx';
 
 const EMPTY_NAVIGATION = Object.freeze([]);
+const PORTAL_STORAGE_KEY = 'eob-eor-demo.v1.portal';
 
 function normalizeRole(value) {
   return typeof value === 'string'
@@ -53,6 +54,23 @@ function resolveNavigationItemHref(item) {
     value.trim().length > 0
     ? value.trim()
     : '#';
+}
+
+function defaultPortalForRole(role) {
+  if (role === 'MEMBER') {
+    return 'Member';
+  }
+
+  if (
+    role === 'CSR' ||
+    role === 'BOS' ||
+    role === 'ITS' ||
+    role === 'ADMIN'
+  ) {
+    return 'Operations';
+  }
+
+  return 'Workspace';
 }
 
 function isNavigationItemVisible(item, role) {
@@ -139,8 +157,10 @@ function NavigationLink({
 
   return (
     <a
-      className={`inline-flex min-h-10 items-center rounded-lg px-3 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-surface-dark ${
-        mobile ? 'w-full' : ''
+      className={`inline-flex min-h-10 items-center rounded-lg py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-surface-dark ${
+        mobile
+          ? 'w-full px-3'
+          : 'shrink-0 whitespace-nowrap px-2.5'
       } ${
         active
           ? 'bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-100'
@@ -162,6 +182,7 @@ NavigationLink.propTypes = {
     end: PropTypes.bool,
     hidden: PropTypes.bool,
     href: PropTypes.string,
+    portal: PropTypes.string,
     label: PropTypes.string,
     path: PropTypes.string,
     roles: PropTypes.arrayOf(PropTypes.string),
@@ -197,9 +218,7 @@ NavigationLink.propTypes = {
  *   sessionExpiresAt?: Date|string|number,
  *   onContinueSession?: Function,
  *   onSessionExpire?: Function,
- *   onSessionWarningOpenChange?: Function,
- *   showDisclosureFooter?: boolean,
- *   footerContent?: React.ReactNode
+ *   onSessionWarningOpenChange?: Function
  * }} props Component props.
  * @returns {JSX.Element} Application shell.
  */
@@ -211,7 +230,7 @@ export function AppShell({
   navigation,
   navigationItems,
   currentPath = '/',
-  applicationName = 'Claims Explanation Simulator',
+  applicationName = 'EOB/EOR Claims Processing',
   homeHref = '/',
   helpHref = '/help',
   helpLabel = 'Help',
@@ -225,11 +244,12 @@ export function AppShell({
   onContinueSession,
   onSessionExpire,
   onSessionWarningOpenChange,
-  showDisclosureFooter = true,
-  footerContent,
 }) {
   const mobileMenuId = useId();
   const mobileMenuButtonRef = useRef(null);
+  const desktopNavRef = useRef(null);
+  const desktopNavMeasureRef = useRef(null);
+  const moreMenuRef = useRef(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [signOutPending, setSignOutPending] = useState(false);
   const [operationError, setOperationError] = useState(null);
@@ -245,6 +265,68 @@ export function AppShell({
       ),
     [actor.role, items],
   );
+  const portalNames = useMemo(() => {
+    const names = [];
+
+    visibleNavigation.forEach((item) => {
+      const name =
+        typeof item.portal === 'string' &&
+        item.portal.trim().length > 0
+          ? item.portal.trim()
+          : 'Workspace';
+
+      if (!names.includes(name)) {
+        names.push(name);
+      }
+    });
+
+    return names;
+  }, [visibleNavigation]);
+  const [selectedPortal, setSelectedPortal] = useState(() => {
+    try {
+      return (
+        globalThis.sessionStorage?.getItem(
+          PORTAL_STORAGE_KEY,
+        ) ?? ''
+      );
+    } catch {
+      return '';
+    }
+  });
+  const preferredPortal = defaultPortalForRole(actor.role);
+  const activePortal = portalNames.includes(selectedPortal)
+    ? selectedPortal
+    : portalNames.includes(preferredPortal)
+      ? preferredPortal
+      : (portalNames[0] ?? 'Workspace');
+  const portalNavigation = useMemo(
+    () =>
+      visibleNavigation.filter((item) => {
+        const name =
+          typeof item.portal === 'string' &&
+          item.portal.trim().length > 0
+            ? item.portal.trim()
+            : 'Workspace';
+
+        return name === activePortal;
+      }),
+    [activePortal, visibleNavigation],
+  );
+  const [visibleNavCount, setVisibleNavCount] = useState(
+    () => portalNavigation.length,
+  );
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      globalThis.sessionStorage?.setItem(
+        PORTAL_STORAGE_KEY,
+        activePortal,
+      );
+    } catch {
+      // The portal choice is only a local navigation preference.
+    }
+  }, [activePortal]);
   const normalizedSessionStatus =
     normalizeRole(sessionStatus) ??
     normalizeRole(session?.status);
@@ -255,7 +337,85 @@ export function AppShell({
 
   useEffect(() => {
     setMobileMenuOpen(false);
+    setMoreMenuOpen(false);
   }, [currentPath]);
+
+  useEffect(() => {
+    const container = desktopNavRef.current;
+    const measure = desktopNavMeasureRef.current;
+
+    if (container === null || measure === null) {
+      return undefined;
+    }
+
+    const measureVisibleCount = () => {
+      const items = [...measure.children];
+      const available = container.clientWidth;
+      let count = items.length;
+      const overflows = items.some(
+        (item) =>
+          item.offsetLeft + item.offsetWidth > available,
+      );
+      const limit = overflows ? available - 88 : available;
+
+      for (let index = 0; index < items.length; index += 1) {
+        const item = items[index];
+
+        if (item.offsetLeft + item.offsetWidth > limit) {
+          count = index;
+          break;
+        }
+      }
+
+      setVisibleNavCount((current) =>
+        current === count ? current : count,
+      );
+    };
+
+    measureVisibleCount();
+
+    const observer = new ResizeObserver(measureVisibleCount);
+
+    observer.observe(container);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [portalNavigation]);
+
+  useEffect(() => {
+    if (!moreMenuOpen) {
+      return undefined;
+    }
+
+    const closeMenu = (event) => {
+      if (
+        moreMenuRef.current !== null &&
+        !moreMenuRef.current.contains(event.target)
+      ) {
+        setMoreMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') {
+        setMoreMenuOpen(false);
+      }
+    };
+
+    globalThis.addEventListener?.('pointerdown', closeMenu);
+    globalThis.addEventListener?.('keydown', closeOnEscape);
+
+    return () => {
+      globalThis.removeEventListener?.(
+        'pointerdown',
+        closeMenu,
+      );
+      globalThis.removeEventListener?.(
+        'keydown',
+        closeOnEscape,
+      );
+    };
+  }, [moreMenuOpen]);
 
   useEffect(() => {
     if (!mobileMenuOpen) {
@@ -387,7 +547,7 @@ export function AppShell({
       </a>
 
       <header className="sticky top-0 z-40 border-b border-border bg-surface/95 shadow-sm backdrop-blur dark:border-border-dark dark:bg-surface-dark/95">
-        <div className="mx-auto flex min-h-16 w-full max-w-7xl items-center gap-3 px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 w-full items-center gap-2 px-4 sm:gap-3 sm:px-6 lg:px-8">
           <a
             className="flex min-w-0 shrink-0 items-center gap-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-surface-dark"
             href={homeHref}
@@ -399,33 +559,127 @@ export function AppShell({
                 aria-hidden="true"
               />
             </span>
-            <span className="hidden max-w-52 truncate text-sm font-semibold text-content dark:text-content-inverse sm:block lg:max-w-none">
+            <span className="hidden whitespace-nowrap text-sm font-semibold text-content dark:text-content-inverse sm:block">
               {applicationName}
             </span>
           </a>
 
-          <nav
-            className="ml-3 hidden min-w-0 flex-1 items-center gap-1 lg:flex"
-            aria-label="Primary navigation"
-          >
-            {visibleNavigation.map((item, index) => (
-              <NavigationLink
-                key={
-                  item.id ??
-                  item.href ??
-                  item.to ??
-                  item.path ??
-                  index
-                }
-                item={item}
-                currentPath={currentPath}
-                mobile={false}
-                onNavigate={handleNavigate}
-              />
-            ))}
-          </nav>
+          {portalNames.length > 1 ? (
+            <label className="ml-2 hidden min-w-0 items-center gap-2 text-xs font-semibold text-content-muted dark:text-content-inverse-muted lg:flex">
+              <span className="sr-only">Portal</span>
+              <select
+                className="max-w-40 rounded-full border border-border-strong bg-surface px-3 py-2 text-sm font-semibold text-content outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30 dark:border-border-dark-strong dark:bg-surface-dark dark:text-content-inverse"
+                aria-label="Portal"
+                value={activePortal}
+                onChange={(event) => {
+                  setSelectedPortal(event.target.value);
+                }}
+              >
+                {portalNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
 
-          <div className="ml-auto hidden items-center gap-2 sm:flex">
+          <div
+            ref={desktopNavRef}
+            className="relative ml-1 hidden min-w-0 flex-1 items-center lg:flex"
+          >
+            <div
+              ref={desktopNavMeasureRef}
+              className="pointer-events-none invisible absolute left-0 top-0 flex items-center"
+              aria-hidden="true"
+            >
+              {portalNavigation.map((item, index) => (
+                <NavigationLink
+                  key={`measure-${
+                    item.id ??
+                    item.href ??
+                    item.to ??
+                    item.path ??
+                    index
+                  }`}
+                  item={item}
+                  currentPath={currentPath}
+                  mobile={false}
+                  onNavigate={handleNavigate}
+                />
+              ))}
+            </div>
+            <nav
+              className="flex min-w-0 flex-1 items-center overflow-hidden"
+              aria-label="Primary navigation"
+            >
+              {portalNavigation
+                .slice(0, visibleNavCount)
+                .map((item, index) => (
+                  <NavigationLink
+                    key={
+                      item.id ??
+                      item.href ??
+                      item.to ??
+                      item.path ??
+                      index
+                    }
+                    item={item}
+                    currentPath={currentPath}
+                    mobile={false}
+                    onNavigate={handleNavigate}
+                  />
+                ))}
+            </nav>
+            {visibleNavCount < portalNavigation.length ? (
+              <div
+                ref={moreMenuRef}
+                className="relative shrink-0"
+              >
+                <button
+                  className="inline-flex min-h-10 items-center gap-1 rounded-lg px-2.5 py-2 text-sm font-medium text-content-muted transition hover:bg-surface-muted hover:text-content focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:text-content-inverse-muted dark:hover:bg-surface-dark-raised dark:hover:text-content-inverse dark:focus:ring-offset-surface-dark"
+                  type="button"
+                  aria-expanded={moreMenuOpen}
+                  aria-haspopup="menu"
+                  onClick={() => {
+                    setMoreMenuOpen((open) => !open);
+                  }}
+                >
+                  More
+                  <ChevronDown
+                    className="h-4 w-4"
+                    aria-hidden="true"
+                  />
+                </button>
+                {moreMenuOpen ? (
+                  <div
+                    className="absolute left-0 top-full z-50 mt-2 min-w-48 rounded-xl border border-border bg-surface p-1 shadow-card dark:border-border-dark dark:bg-surface-dark"
+                    role="menu"
+                  >
+                    {portalNavigation
+                      .slice(visibleNavCount)
+                      .map((item, index) => (
+                        <NavigationLink
+                          key={
+                            item.id ??
+                            item.href ??
+                            item.to ??
+                            item.path ??
+                            index
+                          }
+                          item={item}
+                          currentPath={currentPath}
+                          mobile
+                          onNavigate={handleNavigate}
+                        />
+                      ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="ml-auto hidden shrink-0 items-center gap-2 sm:flex">
             <a
               className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-content-muted transition hover:bg-surface-muted hover:text-content focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:text-content-inverse-muted dark:hover:bg-surface-dark-raised dark:hover:text-content-inverse dark:focus:ring-offset-surface-dark"
               href={helpHref}
@@ -527,11 +781,31 @@ export function AppShell({
                 </div>
               </div>
 
+              {portalNames.length > 1 ? (
+                <label className="mb-3 block text-xs font-semibold text-content-muted dark:text-content-inverse-muted">
+                  Portal
+                  <select
+                    className="mt-1 block min-h-11 w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-sm font-semibold text-content outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30 dark:border-border-dark-strong dark:bg-surface-dark dark:text-content-inverse"
+                    aria-label="Portal"
+                    value={activePortal}
+                    onChange={(event) => {
+                      setSelectedPortal(event.target.value);
+                    }}
+                  >
+                    {portalNames.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
               <nav
                 className="space-y-1"
                 aria-label="Mobile primary navigation"
               >
-                {visibleNavigation.map((item, index) => (
+                {portalNavigation.map((item, index) => (
                   <NavigationLink
                     key={
                       item.id ??
@@ -587,27 +861,6 @@ export function AppShell({
         {children}
       </main>
 
-      <footer className="mt-auto border-t border-border bg-surface dark:border-border-dark dark:bg-surface-dark-muted">
-        {showDisclosureFooter ? (
-          <DisclosureBanner
-            id="application-shell-disclosures"
-            className="border-b-0"
-            compact
-            title="Static demonstration disclosures"
-          />
-        ) : null}
-
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-4 text-xs text-content-subtle dark:text-content-inverse-muted sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-          <p>
-            Fictional browser-local claims demonstration. No
-            external healthcare or payment system is connected.
-          </p>
-          {footerContent !== undefined ? (
-            <div>{footerContent}</div>
-          ) : null}
-        </div>
-      </footer>
-
       {warningVisible &&
       typeof onContinueSession === 'function' &&
       typeof onSignOut === 'function' ? (
@@ -659,8 +912,6 @@ AppShell.propTypes = {
   onContinueSession: PropTypes.func,
   onSessionExpire: PropTypes.func,
   onSessionWarningOpenChange: PropTypes.func,
-  showDisclosureFooter: PropTypes.bool,
-  footerContent: PropTypes.node,
 };
 
 export const ApplicationShell = AppShell;

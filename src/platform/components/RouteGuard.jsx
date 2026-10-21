@@ -2,6 +2,7 @@ import PropTypes from 'prop-types';
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { Outlet } from 'react-router-dom';
@@ -39,6 +40,38 @@ function resolveResource(resource, session) {
   return typeof resource === 'function'
     ? resource(session)
     : resource ?? null;
+}
+
+function createResourceKey(resource) {
+  if (typeof resource === 'function') {
+    return resource;
+  }
+
+  if (resource === null || resource === undefined) {
+    return null;
+  }
+
+  if (typeof resource !== 'object') {
+    return String(resource);
+  }
+
+  try {
+    return JSON.stringify(resource);
+  } catch {
+    return resource;
+  }
+}
+
+function createAccessIdentity(permission) {
+  const session = permission.session;
+
+  return [
+    permission.authenticated ? '1' : '0',
+    permission.role ?? '',
+    session?.sessionId ?? '',
+    session?.userId ?? '',
+    session?.memberId ?? '',
+  ].join('|');
 }
 
 /**
@@ -180,6 +213,21 @@ export function RouteGuard({
   const [accessState, setAccessState] = useState(
     ACCESS_STATES.CHECKING,
   );
+  const evaluateRef = useRef(permission.evaluate);
+  const hasCapabilityRef = useRef(permission.hasCapability);
+  const sessionRef = useRef(permission.session);
+  const authenticatedRef = useRef(permission.authenticated);
+  const roleRef = useRef(permission.role);
+  const resourceRef = useRef(resource);
+  const resourceKey = createResourceKey(resource);
+  const accessIdentity = createAccessIdentity(permission);
+
+  evaluateRef.current = permission.evaluate;
+  hasCapabilityRef.current = permission.hasCapability;
+  sessionRef.current = permission.session;
+  authenticatedRef.current = permission.authenticated;
+  roleRef.current = permission.role;
+  resourceRef.current = resource;
 
   useEffect(() => {
     let active = true;
@@ -192,14 +240,15 @@ export function RouteGuard({
       requestedCapabilities.every(
         (requestedCapability) =>
           requestedCapability === ROUTE_CAPABILITIES.PUBLIC ||
-          permission.hasCapability(requestedCapability),
+          hasCapabilityRef.current(requestedCapability),
       );
     const rolesValid = requestedRoles.every(isPlatformRole);
+    const currentRole = roleRef.current;
     const roleAllowed =
       requestedRoles.length === 0 ||
       (rolesValid &&
-        permission.role !== null &&
-        requestedRoles.includes(permission.role));
+        currentRole !== null &&
+        requestedRoles.includes(currentRole));
 
     if (!capabilitiesAllowed || !roleAllowed) {
       setAccessState(ACCESS_STATES.DENIED);
@@ -215,7 +264,7 @@ export function RouteGuard({
       };
     }
 
-    if (!permission.authenticated) {
+    if (!authenticatedRef.current) {
       setAccessState(ACCESS_STATES.DENIED);
       return () => {
         active = false;
@@ -227,11 +276,14 @@ export function RouteGuard({
     const evaluateAccess = async () => {
       try {
         const resolvedResource = await Promise.resolve(
-          resolveResource(resource, permission.session),
+          resolveResource(
+            resourceRef.current,
+            sessionRef.current,
+          ),
         );
         const decisions = await Promise.all(
           requestedActions.map((requestedAction) =>
-            permission.evaluate({
+            evaluateRef.current({
               action: requestedAction,
               resource: resolvedResource,
             }),
@@ -259,12 +311,15 @@ export function RouteGuard({
     return () => {
       active = false;
     };
+    // evaluate() writes pending permission state. Depending on the whole
+    // permission object restarts this effect on every write and exceeds
+    // React's update depth on every guarded page.
   }, [
-    permission,
+    accessIdentity,
     requestedActions,
     requestedCapabilities,
     requestedRoles,
-    resource,
+    resourceKey,
   ]);
 
   if (accessState === ACCESS_STATES.CHECKING) {

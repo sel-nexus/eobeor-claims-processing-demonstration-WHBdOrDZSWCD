@@ -221,7 +221,7 @@ async function signIn(page, persona = JOHN_PERSONA) {
 
   await expect(
     page.getByRole('heading', {
-      name: 'Claims Explanation Simulator',
+      name: 'EOB/EOR Claims Processing',
     }),
   ).toBeVisible();
 
@@ -446,7 +446,7 @@ test.describe('Network isolation, privacy, accessibility, and responsive accepta
     await page.goto('/signin');
     await expect(
       page.getByRole('heading', {
-        name: 'Claims Explanation Simulator',
+        name: 'EOB/EOR Claims Processing',
       }),
     ).toBeVisible();
     await runAxeSmokeCheck(page, 'Sign-in route');

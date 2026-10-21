@@ -17,6 +17,7 @@ import {
 } from '../validation/schemas.js';
 
 const noop = () => {};
+const EMPTY_DECISIONS = Object.freeze({});
 
 function requireOptions(value) {
   if (value === undefined) {
@@ -381,7 +382,7 @@ export function usePermission(permissionService, options = {}) {
   const activeDecisions =
     decisionState.sessionKey === sessionKey
       ? decisionState.values
-      : Object.freeze({});
+      : EMPTY_DECISIONS;
 
   const visibleCapabilities = useMemo(() => {
     if (!sessionSnapshot.authenticated) {

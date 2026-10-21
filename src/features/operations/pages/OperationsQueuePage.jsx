@@ -543,9 +543,18 @@ export function OperationsQueuePage({
     bulkOperationService ??
     queueService ??
     requestService;
-  const listRequests = resolveListMethod(service);
-  const bulkProcess = resolveBulkMethod(service);
-  const exportRows = resolveExportMethod(service);
+  const listRequests = useMemo(
+    () => resolveListMethod(service),
+    [service],
+  );
+  const bulkProcess = useMemo(
+    () => resolveBulkMethod(service),
+    [service],
+  );
+  const exportRows = useMemo(
+    () => resolveExportMethod(service),
+    [service],
+  );
   const initialFilterState = useMemo(
     () => ({
       ...createEmptyFilters(),

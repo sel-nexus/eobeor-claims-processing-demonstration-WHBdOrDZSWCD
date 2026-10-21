@@ -1,6 +1,8 @@
 import {
   useEffect,
   useMemo,
+  useRef,
+  useState,
   useSyncExternalStore,
 } from 'react';
 import PropTypes from 'prop-types';
@@ -13,10 +15,6 @@ import ApplicationRouter from './router.jsx';
 import ErrorBoundary from './platform/components/ErrorBoundary.jsx';
 import AppShell from './platform/components/AppShell.jsx';
 import { SEEDED_ACCOUNTS } from './fixtures/accounts.js';
-import {
-  APP_VERSION,
-  FIXTURE_VERSION,
-} from './platform/config/constants.js';
 import { assertFixtureIntegrity } from './platform/validation/fixtureValidator.js';
 import {
   createStorageGateway,
@@ -71,48 +69,161 @@ const NAVIGATION_ITEMS = Object.freeze([
     label: 'Home',
     href: '/',
     end: true,
+    portal: 'Workspace',
   }),
   Object.freeze({
-    id: 'claims',
-    label: 'Claims',
+    id: 'member-claims',
+    label: 'My claims',
     href: '/claims',
-    roles: ['MEMBER', 'CSR', 'BOS', 'ADMIN'],
+    roles: ['MEMBER'],
+    portal: 'Member',
   }),
   Object.freeze({
-    id: 'documents',
+    id: 'member-documents',
     label: 'Documents',
     href: '/documents',
     roles: ['MEMBER'],
+    portal: 'Member',
   }),
   Object.freeze({
-    id: 'csr',
-    label: 'Support',
+    id: 'csr-dashboard',
+    label: 'Dashboard',
     href: '/csr',
     roles: ['CSR', 'ADMIN'],
+    portal: 'Operations',
   }),
   Object.freeze({
-    id: 'operations',
-    label: 'Operations',
+    id: 'search-claims',
+    label: 'Search claims',
+    href: '/claims',
+    roles: ['CSR', 'BOS', 'ADMIN'],
+    portal: 'Operations',
+  }),
+  Object.freeze({
+    id: 'assistant',
+    label: 'Help',
+    href: '/assistant',
+    roles: ['CSR', 'ADMIN'],
+    portal: 'Operations',
+  }),
+  Object.freeze({
+    id: 'new-reprint',
+    label: 'New reprint',
+    href: '/operations/requests/new',
+    roles: ['MEMBER', 'CSR', 'BOS', 'ADMIN'],
+    portal: 'Reprints',
+  }),
+  Object.freeze({
+    id: 'reports',
+    label: 'Reports',
+    href: '/operations/reports',
+    roles: ['MEMBER', 'CSR', 'BOS', 'ADMIN'],
+    portal: 'Reporting',
+  }),
+  Object.freeze({
+    id: 'queue',
+    label: 'Queue',
     href: '/operations/queue',
     roles: ['BOS', 'ADMIN'],
+    portal: 'Operations',
+  }),
+  Object.freeze({
+    id: 'reviews',
+    label: 'Manual review',
+    href: '/operations/reviews',
+    roles: ['BOS', 'ADMIN'],
+    portal: 'Operations',
+  }),
+  Object.freeze({
+    id: 'rework',
+    label: 'Rework',
+    href: '/operations/rework',
+    roles: ['BOS', 'ADMIN'],
+    portal: 'Operations',
+  }),
+  Object.freeze({
+    id: 'inbound',
+    label: 'Inbound files',
+    href: '/operations/inbound',
+    roles: ['BOS', 'ADMIN'],
+    portal: 'Operations',
+  }),
+  Object.freeze({
+    id: 'batch',
+    label: 'Nightly batch',
+    href: '/operations/batch',
+    roles: ['BOS', 'ADMIN'],
+    portal: 'Operations',
   }),
   Object.freeze({
     id: 'monitoring',
     label: 'Monitoring',
     href: '/monitoring',
     roles: ['ITS', 'ADMIN'],
+    portal: 'Operations',
+  }),
+  Object.freeze({
+    id: 'integrations',
+    label: 'Integrations',
+    href: '/integrations',
+    roles: ['ITS', 'ADMIN'],
+    portal: 'Operations',
+  }),
+  Object.freeze({
+    id: 'executive',
+    label: 'Executive',
+    href: '/executive',
+    roles: ['BOS', 'ADMIN'],
+    portal: 'Insights',
+  }),
+  Object.freeze({
+    id: 'productivity',
+    label: 'Productivity',
+    href: '/productivity',
+    roles: ['BOS', 'ADMIN'],
+    portal: 'Insights',
+  }),
+  Object.freeze({
+    id: 'data',
+    label: 'Data',
+    href: '/admin/data',
+    roles: ['CSR', 'BOS', 'ITS', 'ADMIN'],
+    portal: 'Governance',
+  }),
+  Object.freeze({
+    id: 'compliance',
+    label: 'Compliance',
+    href: '/compliance',
+    roles: ['BOS', 'ITS', 'ADMIN'],
+    portal: 'Governance',
   }),
   Object.freeze({
     id: 'audit',
     label: 'Audit',
     href: '/audit',
     roles: ['ITS', 'ADMIN'],
+    portal: 'Governance',
   }),
   Object.freeze({
-    id: 'administration',
-    label: 'Administration',
+    id: 'settings',
+    label: 'Rules',
+    href: '/admin/settings',
+    roles: ['ITS', 'ADMIN'],
+    portal: 'Governance',
+  }),
+  Object.freeze({
+    id: 'snapshots',
+    label: 'Snapshots',
+    href: '/admin/snapshots',
+    roles: ['ITS', 'ADMIN'],
+    portal: 'Governance',
+  }),
+  Object.freeze({
+    id: 'users',
+    label: 'Users',
     href: '/admin/users',
     roles: ['ADMIN'],
+    portal: 'Governance',
   }),
 ]);
 
@@ -606,6 +717,10 @@ function ApplicationComposition() {
     () => createApplicationComposition(),
     [],
   );
+  const compositionMounted = useRef(false);
+  const [currentPath, setCurrentPath] = useState(
+    () => globalThis.location?.pathname ?? '/',
+  );
   const sessionState = useSession(composition.authFacade);
   const platformSnapshot = useSyncExternalStore(
     (listener) =>
@@ -619,10 +734,20 @@ function ApplicationComposition() {
   const session = sessionState.session;
 
   useEffect(() => {
+    compositionMounted.current = true;
     composition.sessionManager.start();
 
     return () => {
-      composition.destroy();
+      compositionMounted.current = false;
+      composition.sessionManager.stop();
+
+      // StrictMode replays this cleanup before the same composition is
+      // subscribed to again. Destroy only after that replay does not remount.
+      globalThis.setTimeout(() => {
+        if (!compositionMounted.current) {
+          composition.destroy();
+        }
+      }, 0);
     };
   }, [composition]);
 
@@ -643,12 +768,6 @@ function ApplicationComposition() {
       new globalThis.Event('popstate'),
     );
   }, [sessionState.authenticated]);
-
-  const footerContent = (
-    <span className="font-mono">
-      App {APP_VERSION} · Fixtures {FIXTURE_VERSION}
-    </span>
-  );
 
   const handleSignOut = async () => {
     const result = await composition.authFacade.signOut();
@@ -672,23 +791,46 @@ function ApplicationComposition() {
         SNAPSHOT_CONFIRMATIONS.RESTORE_SAMPLE,
     });
 
-  const router = (
-    <>
-      <StorageNotices
-        platformSnapshot={platformSnapshot}
-        storageFallback={composition.storageFallback}
-        storageError={composition.storageError}
-      />
-      <ApplicationRouter
-        permissionService={composition.permissionService}
-        sessionProvider={composition.authFacade}
+  const frame = (routes) =>
+    sessionState.authenticated ? (
+      <AppShell
         session={session}
-        context={session}
-        services={composition.services}
-        pageProps={EMPTY_OBJECT}
-      />
-    </>
-  );
+        navigation={NAVIGATION_ITEMS}
+        currentPath={currentPath}
+        helpHref={
+          session?.role === 'CSR' ||
+          session?.role === 'ADMIN'
+            ? '/assistant'
+            : '/help'
+        }
+        onSignOut={handleSignOut}
+        signingOut={sessionState.operationPending}
+        sessionStatus={sessionState.status}
+        sessionWarningOpen={sessionState.isWarning}
+        sessionRemainingMs={sessionState.remainingMs}
+        sessionExpiresAt={session?.expiresAt}
+        onContinueSession={sessionState.recordActivity}
+        onSessionExpire={() =>
+          handleSignOut('EXPIRED')
+        }
+      >
+        <StorageNotices
+          platformSnapshot={platformSnapshot}
+          storageFallback={composition.storageFallback}
+          storageError={composition.storageError}
+        />
+        {routes}
+      </AppShell>
+    ) : (
+      <>
+        <StorageNotices
+          platformSnapshot={platformSnapshot}
+          storageFallback={composition.storageFallback}
+          storageError={composition.storageError}
+        />
+        {routes}
+      </>
+    );
 
   return (
     <ErrorBoundary
@@ -698,30 +840,16 @@ function ApplicationComposition() {
       ]}
       onRestore={handleRestore}
     >
-      {sessionState.authenticated ? (
-        <AppShell
-          session={session}
-          navigation={NAVIGATION_ITEMS}
-          currentPath={
-            globalThis.location?.pathname ?? '/'
-          }
-          onSignOut={handleSignOut}
-          signingOut={sessionState.operationPending}
-          sessionStatus={sessionState.status}
-          sessionWarningOpen={sessionState.isWarning}
-          sessionRemainingMs={sessionState.remainingMs}
-          sessionExpiresAt={session?.expiresAt}
-          onContinueSession={sessionState.recordActivity}
-          onSessionExpire={() =>
-            handleSignOut('EXPIRED')
-          }
-          footerContent={footerContent}
-        >
-          {router}
-        </AppShell>
-      ) : (
-        router
-      )}
+      <ApplicationRouter
+        permissionService={composition.permissionService}
+        sessionProvider={composition.authFacade}
+        session={session}
+        context={session}
+        services={composition.services}
+        pageProps={EMPTY_OBJECT}
+        onPathChange={setCurrentPath}
+        frame={frame}
+      />
     </ErrorBoundary>
   );
 }

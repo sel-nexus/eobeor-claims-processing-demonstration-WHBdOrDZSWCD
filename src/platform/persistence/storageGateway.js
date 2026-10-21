@@ -25,8 +25,8 @@ const COMMIT_MARKER_PATTERN =
   /^revision:(\d+);checksum:([a-z0-9-]+);commit:([a-zA-Z0-9_-]+)$/;
 const CHECKSUM_PREFIX = 'fnv1a32-';
 const moduleSubscribers = new Map();
-const REALM_ID = createRuntimeId('realm');
 let runtimeSequence = 0;
+const REALM_ID = createRuntimeId('realm');
 
 function createRuntimeId(prefix) {
   runtimeSequence += 1;

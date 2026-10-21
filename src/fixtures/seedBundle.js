@@ -41,7 +41,7 @@ export const INITIAL_SETTINGS = deepFreeze({
   updatedBy: 'system',
   updatedAt: SEEDED_AT,
   labels: {
-    applicationName: 'Claims Explanation Simulator',
+    applicationName: 'EOB/EOR Claims Processing',
     eob: 'Explanation of Benefits',
     eor: 'Explanation of Review',
   },

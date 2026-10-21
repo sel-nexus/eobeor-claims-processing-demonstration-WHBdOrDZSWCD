@@ -2,6 +2,7 @@ import PropTypes from 'prop-types';
 import {
   Suspense,
   lazy,
+  useEffect,
 } from 'react';
 import {
   BrowserRouter,
@@ -15,7 +16,6 @@ import {
 import {
   FileQuestion,
   Loader2,
-  ShieldCheck,
 } from 'lucide-react';
 import ErrorBoundary from './platform/components/ErrorBoundary.jsx';
 import RouteGuard from './platform/components/RouteGuard.jsx';
@@ -198,10 +198,7 @@ function RouteLoading() {
           aria-hidden="true"
         />
         <p className="mt-3 font-medium text-content dark:text-content-inverse">
-          Loading browser-local route
-        </p>
-        <p className="mt-2 text-sm text-content-muted dark:text-content-inverse-muted">
-          Preparing the fictional demonstration workspace.
+          Loading
         </p>
       </section>
     </main>
@@ -220,17 +217,13 @@ function HelpPage() {
             />
           </span>
           <div>
-            <p className="text-sm font-semibold text-primary-700 dark:text-primary-300">
-              Browser-local assistance
-            </p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-content dark:text-content-inverse sm:text-3xl">
-              Help and demonstration guidance
+            <h1 className="text-2xl font-semibold tracking-tight text-content dark:text-content-inverse sm:text-3xl">
+              Help
             </h1>
             <p className="mt-3 text-sm leading-6 text-content-muted dark:text-content-inverse-muted sm:text-base">
-              Use the navigation available to your current demo
-              role to explore fictional claims, representative
-              documents, operations workflows, and governance
-              controls.
+              Short explanations of an EOB, an EOR, and reason
+              code 45. Customer service can continue in the
+              scripted assistant.
             </p>
           </div>
         </div>
@@ -238,46 +231,36 @@ function HelpPage() {
 
       <section className="mt-6 rounded-xl border border-border bg-surface p-5 shadow-card dark:border-border-dark dark:bg-surface-dark-muted sm:p-6">
         <h2 className="text-lg font-semibold text-content dark:text-content-inverse">
-          Important boundaries
+          EOB, EOR, and reason code 45
         </h2>
         <ul className="mt-4 space-y-3 text-sm leading-6 text-content-muted dark:text-content-inverse-muted">
           <li className="rounded-lg bg-surface-muted p-4 dark:bg-surface-dark">
-            All member, claim, provider, payment, document, and
-            operational records are fictional.
+            An EOB, Explanation of Benefits, shows what was billed,
+            allowed, paid, and left as patient responsibility.
           </li>
           <li className="rounded-lg bg-surface-muted p-4 dark:bg-surface-dark">
-            Demo credentials, role checks, processing, and storage
-            remain client-side and are not production security
-            controls.
+            An EOR, Explanation of Remittance, is the provider
+            remittance advice with payment, adjustments, and
+            CARC/RARC codes.
           </li>
           <li className="rounded-lg bg-surface-muted p-4 dark:bg-surface-dark">
-            No payer, provider, healthcare, payment, identity,
-            monitoring, or integration service is contacted.
-          </li>
-          <li className="rounded-lg bg-surface-muted p-4 dark:bg-surface-dark">
-            Representative EOB and EOR files are static samples and
-            are not bills or authoritative claim documents.
+            Reason code 45 means deductible applied. On the sample
+            EOB for CL2024001, that code is printed with the
+            coverage summary.
           </li>
         </ul>
+        <p className="mt-4 text-sm leading-6 text-content-muted dark:text-content-inverse-muted">
+          Customer service and administrator sessions can open the
+          scripted assistant to ask about code 45 and attach the
+          answer to an inquiry.
+        </p>
+        <a
+          className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+          href="/assistant"
+        >
+          Open scripted assistant
+        </a>
       </section>
-
-      <aside
-        className="mt-6 rounded-xl border border-primary-200 bg-primary-50 p-4 text-sm text-primary-900 dark:border-primary-800 dark:bg-primary-950 dark:text-primary-100"
-        role="note"
-      >
-        <div className="flex items-start gap-3">
-          <ShieldCheck
-            className="mt-0.5 h-5 w-5 shrink-0 text-primary-700 dark:text-primary-300"
-            aria-hidden="true"
-          />
-          <p className="leading-6">
-            If a route is unavailable, return home and select a
-            journey shown for the current seeded persona. Generic
-            denial and not-found screens intentionally do not
-            disclose protected fixture identifiers.
-          </p>
-        </div>
-      </aside>
     </main>
   );
 }
@@ -326,7 +309,23 @@ function RoutedPage({
       );
     }
 
-    navigate('/');
+    const session = argumentsList[0];
+    const role =
+      session !== null &&
+      typeof session === 'object' &&
+      typeof session.role === 'string'
+        ? session.role
+        : '';
+
+    const destinationByRole = {
+      MEMBER: '/claims',
+      CSR: '/csr',
+      BOS: '/operations/queue',
+      ITS: '/monitoring',
+      ADMIN: '/admin/users',
+    };
+
+    navigate(destinationByRole[role] ?? '/');
   };
 
   return (
@@ -1009,6 +1008,22 @@ RouteTree.propTypes = {
  * }} props Router props.
  * @returns {JSX.Element} Browser router.
  */
+function RoutePathReporter({ onPathChange }) {
+  const location = useLocation();
+
+  useEffect(() => {
+    if (typeof onPathChange === 'function') {
+      onPathChange(location.pathname);
+    }
+  }, [location.pathname, onPathChange]);
+
+  return null;
+}
+
+RoutePathReporter.propTypes = {
+  onPathChange: PropTypes.func,
+};
+
 export function ApplicationRouter({
   permissionService,
   sessionProvider,
@@ -1017,15 +1032,17 @@ export function ApplicationRouter({
   services = EMPTY_OBJECT,
   pageProps = EMPTY_OBJECT,
   basename,
+  onPathChange,
+  frame,
 }) {
   const resolvedSessionProvider =
     sessionProvider ??
     services.authFacade ??
     services.sessionManager ??
     undefined;
-
-  return (
-    <BrowserRouter basename={basename}>
+  const routes = (
+    <>
+      <RoutePathReporter onPathChange={onPathChange} />
       <RouteTree
         permissionService={permissionService}
         sessionProvider={resolvedSessionProvider}
@@ -1034,6 +1051,12 @@ export function ApplicationRouter({
         services={services}
         pageProps={pageProps}
       />
+    </>
+  );
+
+  return (
+    <BrowserRouter basename={basename}>
+      {typeof frame === 'function' ? frame(routes) : routes}
     </BrowserRouter>
   );
 }
@@ -1051,6 +1074,8 @@ ApplicationRouter.propTypes = {
   services: PropTypes.object,
   pageProps: PropTypes.object,
   basename: PropTypes.string,
+  onPathChange: PropTypes.func,
+  frame: PropTypes.func,
 };
 
 export function ApplicationRoutes(props) {

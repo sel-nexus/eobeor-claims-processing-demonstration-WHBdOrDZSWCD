@@ -258,6 +258,7 @@ function createGroupRegistry() {
     REMITTANCE_ROWS,
     DOCUMENT_ARTIFACTS: DOCUMENT_ARTIFACT_MANIFEST,
     DOCUMENT_VERSIONS: INITIAL_DOCUMENT_VERSIONS,
+    INITIAL_DOCUMENT_VERSIONS,
     DOCUMENT_VERSION_DETAILS,
     REQUESTS: OPERATIONS_FIXTURES.requests,
     PROCESSING_OUTCOME_PROFILES:
@@ -305,6 +306,7 @@ function createGroupRegistry() {
       COMPLIANCE_PRODUCTION_ONLY_NOT_PROVIDED,
     COMPLIANCE_IDENTITY_CONTEXT_ITEMS:
       COMPLIANCE_IDENTITY_CONTEXT,
+    EXECUTIVE_MONTHLY_TREND: EXECUTIVE_MONTHLY_TREND.points,
     EXECUTIVE_MONTHLY_TREND_POINTS:
       EXECUTIVE_MONTHLY_TREND.points,
     PRODUCTIVITY_BEFORE_STEPS,
@@ -378,10 +380,13 @@ function validateManifest(errors, registry) {
       return;
     }
 
+    const declaredCount =
+      EXPECTED_RECORD_COUNTS[group.seedGroupId];
+
     if (
       records.length !== group.expectedRecordCount ||
-      records.length !==
-        EXPECTED_RECORD_COUNTS[group.seedGroupId]
+      (declaredCount !== undefined &&
+        records.length !== declaredCount)
     ) {
       addError(
         errors,
@@ -593,7 +598,21 @@ function validateRelationships(errors, registry) {
   });
 }
 
+function isDeniedWithoutPayment(record) {
+  return (
+    record.status === 'DENIED' &&
+    areNumbersEqual(record.allowedAmount, 0) &&
+    areNumbersEqual(record.discountAmount, 0) &&
+    areNumbersEqual(record.planPaidAmount, 0) &&
+    areNumbersEqual(record.memberResponsibilityAmount, 0)
+  );
+}
+
 function validateFinancialRecord(errors, record, path) {
+  if (isDeniedWithoutPayment(record)) {
+    return;
+  }
+
   const expectedAllowed =
     record.billedAmount - record.discountAmount;
   const expectedAllowedFromResponsibility =
@@ -1131,7 +1150,7 @@ export class FixtureIntegrityError extends Error {
     super(message);
     this.name = 'FixtureIntegrityError';
     this.code = 'FIXTURE_SCHEMA_INVALID';
-    this.errors = deepFreeze([...errors]);
+    this.errors = deepFreeze(structuredClone(errors));
   }
 }
 

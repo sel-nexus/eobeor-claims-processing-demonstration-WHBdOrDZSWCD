@@ -111,6 +111,8 @@ export function isIsoDateTime(value) {
  * @returns {boolean} Whether the value is safe JSON data.
  */
 export function isJsonCompatible(value, ancestors = new Set()) {
+  const seen = ancestors instanceof Set ? ancestors : new Set();
+
   if (
     value === null ||
     typeof value === 'string' ||
@@ -124,21 +126,21 @@ export function isJsonCompatible(value, ancestors = new Set()) {
   }
 
   if (Array.isArray(value)) {
-    if (ancestors.has(value)) {
+    if (seen.has(value)) {
       return false;
     }
 
-    const nextAncestors = new Set(ancestors);
+    const nextAncestors = new Set(seen);
     nextAncestors.add(value);
 
     return value.every((item) => isJsonCompatible(item, nextAncestors));
   }
 
-  if (!isPlainObject(value) || ancestors.has(value)) {
+  if (!isPlainObject(value) || seen.has(value)) {
     return false;
   }
 
-  const nextAncestors = new Set(ancestors);
+  const nextAncestors = new Set(seen);
   nextAncestors.add(value);
 
   return Object.entries(value).every(
@@ -425,10 +427,10 @@ export function isMonitoringState(value) {
     isJsonCompatible(kpis) &&
     Array.isArray(events) &&
     events.length <= 500 &&
-    events.every(isJsonCompatible) &&
+    events.every((event) => isJsonCompatible(event)) &&
     Array.isArray(alerts) &&
     alerts.length <= 200 &&
-    alerts.every(isJsonCompatible) &&
+    alerts.every((alert) => isJsonCompatible(alert)) &&
     Number.isInteger(value.revision) &&
     value.revision >= 1
   );

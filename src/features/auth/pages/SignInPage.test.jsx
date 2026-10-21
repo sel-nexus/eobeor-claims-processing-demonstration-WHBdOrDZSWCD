@@ -42,7 +42,7 @@ describe('SignInPage', () => {
 
     expect(
       screen.getByRole('heading', {
-        name: 'Claims Explanation Simulator',
+        name: 'EOB/EOR Claims Processing',
       }),
     ).toBeInTheDocument();
     expect(

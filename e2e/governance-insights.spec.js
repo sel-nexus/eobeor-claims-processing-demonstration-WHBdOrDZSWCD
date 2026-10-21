@@ -27,7 +27,7 @@ async function signIn(page, persona) {
 
   await expect(
     page.getByRole('heading', {
-      name: 'Claims Explanation Simulator',
+      name: 'EOB/EOR Claims Processing',
     }),
   ).toBeVisible();
 

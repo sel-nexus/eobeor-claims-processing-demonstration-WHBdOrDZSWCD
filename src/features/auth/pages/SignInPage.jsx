@@ -162,6 +162,24 @@ export function SignInPage({
     setStep(SIGN_IN_STEPS.MFA);
   };
 
+  const handleCompanySso = () => {
+    clearFeedback();
+
+    if (selectedAccount === null) {
+      setFieldErrors([
+        {
+          field: 'username',
+          message:
+            'Select a fictional demo account before continuing with company SSO.',
+        },
+      ]);
+      return;
+    }
+
+    setPassword(DEMO_PASSWORD);
+    setStep(SIGN_IN_STEPS.MFA);
+  };
+
   const handleSignIn = async (event) => {
     event.preventDefault();
     clearFeedback();
@@ -265,7 +283,7 @@ export function SignInPage({
             />
           </span>
           <h1 className="mt-4 text-2xl font-semibold tracking-tight text-content dark:text-content-inverse sm:text-3xl">
-            Claims Explanation Simulator
+            EOB/EOR Claims Processing
           </h1>
           <p className="mt-2 text-sm leading-6 text-content-muted dark:text-content-inverse-muted">
             Sign in with a seeded fictional persona to explore
@@ -312,6 +330,7 @@ export function SignInPage({
           </div>
 
           {step === SIGN_IN_STEPS.PASSWORD ? (
+            <>
             <form
               className="space-y-5 px-5 py-6 sm:px-6"
               onSubmit={handlePasswordStep}
@@ -463,6 +482,24 @@ export function SignInPage({
                 Continue
               </button>
             </form>
+            <div className="space-y-3 px-5 pb-6 sm:px-6">
+              <button
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-primary-600 bg-surface px-4 py-2 text-sm font-semibold text-primary-700 transition hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-surface-dark dark:text-primary-200 dark:hover:bg-primary-950 dark:focus:ring-offset-surface-dark"
+                type="button"
+                disabled={pending}
+                onClick={handleCompanySso}
+              >
+                Continue with company SSO
+              </button>
+              <p className="text-xs leading-5 text-content-muted dark:text-content-inverse-muted">
+                SAML 2.0 and OAuth 2.0 are named here as
+                demonstration labels. Company SSO uses the selected
+                fictional persona and does not contact an identity
+                provider. The next step still asks for the printed
+                MFA code.
+              </p>
+            </div>
+            </>
           ) : (
             <form
               className="space-y-5 px-5 py-6 sm:px-6"
