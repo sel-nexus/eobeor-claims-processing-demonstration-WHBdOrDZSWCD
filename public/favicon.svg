@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Claim document">
+  <rect width="64" height="64" rx="14" fill="#0f766e"/>
+  <path d="M18 12h21l9 9v31H18z" fill="#fff"/>
+  <path d="M39 12v9h9" fill="#ccfbf1"/>
+  <path d="M25 29h16M25 36h16M25 43h10" fill="none" stroke="#0f766e" stroke-width="4" stroke-linecap="round"/>
+</svg>

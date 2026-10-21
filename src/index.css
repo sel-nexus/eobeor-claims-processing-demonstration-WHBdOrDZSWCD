@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: light;
+    @apply bg-surface-muted antialiased;
+  }
+
+  html.dark {
+    color-scheme: dark;
+    @apply bg-surface-dark;
+  }
+
+  body {
+    @apply m-0 min-w-[320px] bg-surface-muted font-sans text-content;
+  }
+
+  .dark body {
+    @apply bg-surface-dark text-content-inverse;
+  }
+
+  #root {
+    @apply min-h-screen;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary-500 ring-offset-2 ring-offset-surface;
+  }
+
+  .dark :focus-visible {
+    @apply ring-offset-surface-dark;
+  }
+
+  ::selection {
+    @apply bg-primary-200 text-content;
+  }
+
+  .dark ::selection {
+    @apply bg-primary-800 text-content-inverse;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  html,
+  body,
+  #root {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  body {
+    min-width: 0;
+  }
+
+  header[role='banner'],
+  footer,
+  nav,
+  [role='dialog'],
+  [role='alertdialog'] {
+    display: none !important;
+  }
+
+  main {
+    display: block !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  a {
+    color: inherit !important;
+    text-decoration: none !important;
+  }
+
+  article,
+  section,
+  aside {
+    break-inside: avoid;
+  }
+}
